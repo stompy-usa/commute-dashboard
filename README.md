@@ -11,9 +11,9 @@ API; GitHub Pages serves the dashboard.
    6:15, 6:30 America/New_York), skipping US federal holidays.
 2. The action calls TomTom's Routing API for the primary route plus two
    alternatives, with live traffic.
-3. Each snapshot is committed to `data/YYYY/MM/DD/HHMM.json`. `data/latest.json`
+3. Each snapshot is committed to `docs/data/YYYY/MM/DD/HHMM.json`. `docs/data/latest.json`
    always points at the most recent snapshot.
-4. The static dashboard under `docs/` reads `data/latest.json` and renders the
+4. The static dashboard under `docs/` reads `docs/data/latest.json` and renders the
    routes on a Leaflet map with OpenStreetMap tiles.
 
 ## One-time setup
@@ -71,8 +71,8 @@ cd docs && python -m http.server 8000
 # open http://localhost:8000
 ```
 
-The dashboard loads `../data/latest.json`, so the `data/` directory must exist
-next to `docs/`.
+The dashboard loads `data/latest.json` (resolved relative to `docs/`), so
+`docs/data/latest.json` must exist before the page will render anything.
 
 ## Manual run in GitHub Actions
 
@@ -87,5 +87,5 @@ scripts/fetch_routes.py          calls TomTom, writes snapshot JSON
 scripts/slot_guard.py            gates the run to real ET slots / workdays
 scripts/holidays.py              US federal holiday check
 docs/                            static dashboard (served by Pages)
-data/                            committed snapshots
+docs/data/                       committed snapshots (inside docs/ so Pages serves them)
 ```

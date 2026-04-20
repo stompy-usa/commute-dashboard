@@ -26,7 +26,8 @@ import requests
 ET = ZoneInfo("America/New_York")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
+DOCS_DIR = REPO_ROOT / "docs"
+DATA_DIR = DOCS_DIR / "data"
 INDEX_MAX_ENTRIES = 200
 
 TOMTOM_URL = "https://api.tomtom.com/routing/1/calculateRoute/{locations}/json"
@@ -144,7 +145,7 @@ def update_index(snapshot_path: Path, snapshot: dict) -> None:
         except json.JSONDecodeError:
             index = []
 
-    rel = snapshot_path.relative_to(REPO_ROOT).as_posix()
+    rel = snapshot_path.relative_to(DOCS_DIR).as_posix()
     entry = {
         "path": rel,
         "captured_at": snapshot["captured_at"],

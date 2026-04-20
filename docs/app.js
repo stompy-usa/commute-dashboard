@@ -1,4 +1,4 @@
-const DATA_URL = "../data/latest.json";
+const DATA_URL = "data/latest.json";
 
 const ROUTE_COLORS = {
   primary: "#22c55e",
