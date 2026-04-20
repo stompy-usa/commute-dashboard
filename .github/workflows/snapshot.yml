@@ -2,6 +2,11 @@ name: Commute snapshot
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Bypass slot/workday guard (manual runs only)"
+        type: boolean
+        default: false
   schedule:
     # GitHub Actions cron is UTC-only. These 8 slots cover 5:45, 6:00, 6:15, 6:30
     # Eastern Time for both EDT (UTC-4) and EST (UTC-5). slot_guard.py inside
@@ -43,6 +48,12 @@ jobs:
       - name: Decide whether to run (ET slot + workday gate)
         id: guard
         run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "slot=manual" >> "$GITHUB_OUTPUT"
+            echo "forced manual run"
+            exit 0
+          fi
           set +e
           slot=$(python scripts/slot_guard.py)
           code=$?
