@@ -118,15 +118,24 @@ const buildCard = (route, isRecommended) => {
       <div><span>distance</span>${fmtMiles(route.summary?.distance_m)}</div>
       <div><span>traffic delay</span><span class="${delay.cls}">${delay.text}</span></div>
     </div>
-    <div class="card-hint">${hasDirections ? "tap for directions" : "directions unavailable (older snapshot)"}</div>
+    <div class="card-hint">${hasDirections ? "tap to focus + directions" : "tap to focus on map"}</div>
   `;
-  card.addEventListener("click", () => {
-    if (hasDirections) openDirections(route);
-  });
+  const toggle = () => {
+    if (!hasDirections) {
+      focusRoute(route.label);
+      document
+        .querySelectorAll(".card")
+        .forEach((c) => c.classList.toggle("selected", c === card));
+      return;
+    }
+    if (mapState.selected === route.label) closeDirections();
+    else openDirections(route);
+  };
+  card.addEventListener("click", toggle);
   card.addEventListener("keydown", (e) => {
-    if ((e.key === "Enter" || e.key === " ") && hasDirections) {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      openDirections(route);
+      toggle();
     }
   });
   return card;
@@ -170,6 +179,8 @@ const openDirections = (route) => {
     .join("");
 
   panel.hidden = false;
+  focusRoute(route.label);
+  invalidateSoon();
 };
 
 const closeDirections = () => {
@@ -177,6 +188,8 @@ const closeDirections = () => {
   document
     .querySelectorAll(".card.selected")
     .forEach((c) => c.classList.remove("selected"));
+  showAllRoutes();
+  invalidateSoon();
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -204,7 +217,14 @@ const renderEmpty = () => {
   cards.appendChild(el);
 };
 
-const renderMap = (routes) => {
+const mapState = {
+  map: null,
+  polylines: new Map(),
+  routes: [],
+  selected: null,
+};
+
+const initMap = (routes) => {
   const map = L.map("map");
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -216,17 +236,16 @@ const renderMap = (routes) => {
     }
   ).addTo(map);
 
-  const allPoints = [];
   routes.forEach((route) => {
     if (!route.polyline?.length) return;
     const color = ROUTE_COLORS[route.label] || "#888";
     const isPrimary = route.label === "primary";
-    L.polyline(route.polyline, {
+    const line = L.polyline(route.polyline, {
       color,
       weight: isPrimary ? 6 : 4,
       opacity: isPrimary ? 0.95 : 0.75,
     }).addTo(map);
-    allPoints.push(...route.polyline);
+    mapState.polylines.set(route.label, line);
   });
 
   if (routes[0]?.polyline?.length) {
@@ -236,10 +255,50 @@ const renderMap = (routes) => {
     L.marker(last).addTo(map).bindTooltip("office");
   }
 
+  mapState.map = map;
+  mapState.routes = routes;
+  showAllRoutes();
+};
+
+const invalidateSoon = () => {
+  if (!mapState.map) return;
+  requestAnimationFrame(() => mapState.map.invalidateSize());
+};
+
+const showAllRoutes = () => {
+  const { map, routes, polylines } = mapState;
+  if (!map) return;
+  const allPoints = [];
+  routes.forEach((route) => {
+    const line = polylines.get(route.label);
+    if (line && !map.hasLayer(line)) line.addTo(map);
+    if (route.polyline?.length) allPoints.push(...route.polyline);
+  });
+  mapState.selected = null;
   if (allPoints.length) {
     map.fitBounds(L.latLngBounds(allPoints), { padding: [24, 24] });
   } else {
     map.setView([39.5, -98.35], 4);
+  }
+};
+
+const focusRoute = (label) => {
+  const { map, routes, polylines } = mapState;
+  if (!map) return;
+  let target = null;
+  routes.forEach((route) => {
+    const line = polylines.get(route.label);
+    if (!line) return;
+    if (route.label === label) {
+      if (!map.hasLayer(line)) line.addTo(map);
+      target = route.polyline;
+    } else if (map.hasLayer(line)) {
+      line.remove();
+    }
+  });
+  mapState.selected = label;
+  if (target?.length) {
+    map.fitBounds(L.latLngBounds(target), { padding: [24, 24] });
   }
 };
 
@@ -405,7 +464,7 @@ const load = async () => {
     cards.appendChild(buildCard(route, route.label === recommended));
   });
 
-  renderMap(routes);
+  initMap(routes);
 
   const todaySnaps = await loadTodaySnapshots();
   renderSummary(todaySnaps);
