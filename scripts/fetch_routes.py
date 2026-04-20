@@ -62,6 +62,7 @@ def call_tomtom(
         "maxAlternatives": "2",
         "alternativeType": "anyRoute",
         "routeRepresentation": "polyline",
+        "instructionsType": "text",
         "travelMode": "car",
         "routeType": "fastest",
         "departAt": "now",
@@ -99,6 +100,18 @@ def build_snapshot(raw: dict, et_slot: str) -> dict:
                 if lat is not None and lon is not None:
                     polyline.append([lat, lon])
 
+        instructions: list[dict] = []
+        for inst in (route.get("guidance", {}) or {}).get("instructions", []) or []:
+            instructions.append(
+                {
+                    "message": inst.get("message"),
+                    "street": inst.get("street"),
+                    "maneuver": inst.get("maneuver"),
+                    "offset_m": inst.get("routeOffsetInMeters"),
+                    "time_s": inst.get("travelTimeInSeconds"),
+                }
+            )
+
         label = "primary" if i == 0 else f"alt_{i}"
         routes_out.append(
             {
@@ -110,6 +123,7 @@ def build_snapshot(raw: dict, et_slot: str) -> dict:
                     "arrival_et": arrival_et,
                 },
                 "polyline": polyline,
+                "instructions": instructions,
             }
         )
 

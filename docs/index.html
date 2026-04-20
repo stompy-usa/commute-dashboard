@@ -25,7 +25,19 @@
         <section id="summary" hidden></section>
         <section id="cards"></section>
       </aside>
-      <section id="map"></section>
+      <div class="map-area">
+        <section id="map"></section>
+        <section id="directions" hidden>
+          <div class="dir-head">
+            <div>
+              <div class="dir-route" id="dir-route"></div>
+              <div class="dir-sub" id="dir-sub"></div>
+            </div>
+            <button type="button" id="dir-close" aria-label="Close directions">&times;</button>
+          </div>
+          <ol id="dir-steps"></ol>
+        </section>
+      </div>
     </main>
     <footer>
       <a href="https://github.com/">source</a>

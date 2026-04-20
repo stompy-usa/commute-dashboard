@@ -30,6 +30,41 @@ const fmtDelay = (seconds) => {
   return { text, cls };
 };
 
+const MANEUVER_ICONS = {
+  DEPART: "\u{1F3C1}",
+  ARRIVE: "\u{1F3C1}",
+  ARRIVE_LEFT: "\u{1F3C1}",
+  ARRIVE_RIGHT: "\u{1F3C1}",
+  STRAIGHT: "\u2B06",
+  CONTINUE: "\u2B06",
+  FOLLOW: "\u2B06",
+  TURN_LEFT: "\u21B0",
+  TURN_RIGHT: "\u21B1",
+  SHARP_LEFT: "\u21B0",
+  SHARP_RIGHT: "\u21B1",
+  BEAR_LEFT: "\u2196",
+  BEAR_RIGHT: "\u2197",
+  KEEP_LEFT: "\u2196",
+  KEEP_RIGHT: "\u2197",
+  TRY_MAKE_UTURN: "\u21BA",
+  MAKE_UTURN: "\u21BA",
+  ENTER_MOTORWAY: "\u2934",
+  ENTER_FREEWAY: "\u2934",
+  ENTER_HIGHWAY: "\u2934",
+  MOTORWAY_EXIT_LEFT: "\u2935",
+  MOTORWAY_EXIT_RIGHT: "\u2935",
+  TAKE_EXIT: "\u2935",
+  ROUNDABOUT_CROSS: "\u27F3",
+  ROUNDABOUT_RIGHT: "\u27F3",
+  ROUNDABOUT_LEFT: "\u27F3",
+  ROUNDABOUT_BACK: "\u27F3",
+  WAYPOINT_LEFT: "\u2022",
+  WAYPOINT_RIGHT: "\u2022",
+  WAYPOINT_REACHED: "\u2022",
+};
+
+const maneuverIcon = (m) => MANEUVER_ICONS[m] || "\u2022";
+
 const fmt12h = (hhmm) => {
   if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return hhmm || "—";
   const [hStr, mStr] = hhmm.split(":");
@@ -66,7 +101,11 @@ const pickRecommended = (routes) => {
 const buildCard = (route, isRecommended) => {
   const card = document.createElement("div");
   card.className = `card ${route.label}${isRecommended ? " recommended" : ""}`;
+  card.dataset.label = route.label;
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
   const delay = fmtDelay(route.summary?.traffic_delay_s);
+  const hasDirections = (route.instructions || []).length > 0;
 
   card.innerHTML = `
     <div class="label">
@@ -79,9 +118,73 @@ const buildCard = (route, isRecommended) => {
       <div><span>distance</span>${fmtMiles(route.summary?.distance_m)}</div>
       <div><span>traffic delay</span><span class="${delay.cls}">${delay.text}</span></div>
     </div>
+    <div class="card-hint">${hasDirections ? "tap for directions" : "directions unavailable (older snapshot)"}</div>
   `;
+  card.addEventListener("click", () => {
+    if (hasDirections) openDirections(route);
+  });
+  card.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && hasDirections) {
+      e.preventDefault();
+      openDirections(route);
+    }
+  });
   return card;
 };
+
+const openDirections = (route) => {
+  const panel = document.getElementById("directions");
+  const stepsEl = document.getElementById("dir-steps");
+  document
+    .querySelectorAll(".card")
+    .forEach((c) =>
+      c.classList.toggle("selected", c.dataset.label === route.label)
+    );
+
+  document.getElementById("dir-route").textContent =
+    route.label.replace("_", " ") + " route";
+  const s = route.summary || {};
+  document.getElementById("dir-sub").textContent =
+    `${fmtMinutes(s.duration_s)} · ${fmtMiles(s.distance_m)} · arrive ${fmt12h(s.arrival_et)}`;
+
+  stepsEl.innerHTML = (route.instructions || [])
+    .map((step) => {
+      const icon = maneuverIcon(step.maneuver);
+      const msg = step.message || step.maneuver || "";
+      const street = step.street && step.message && !step.message.includes(step.street)
+        ? `<div class="step-street">on ${step.street}</div>`
+        : "";
+      const dist =
+        step.offset_m != null ? fmtMiles(step.offset_m) : "";
+      return `
+        <li>
+          <div class="step-icon">${icon}</div>
+          <div>
+            <div class="step-text">${msg}</div>
+            ${street}
+          </div>
+          <div class="step-dist">${dist}</div>
+        </li>
+      `;
+    })
+    .join("");
+
+  panel.hidden = false;
+};
+
+const closeDirections = () => {
+  document.getElementById("directions").hidden = true;
+  document
+    .querySelectorAll(".card.selected")
+    .forEach((c) => c.classList.remove("selected"));
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("dir-close")?.addEventListener("click", closeDirections);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDirections();
+  });
+});
 
 const renderError = (msg) => {
   const cards = document.getElementById("cards");
