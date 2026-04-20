@@ -1,0 +1,80 @@
+name: Commute snapshot
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions cron is UTC-only. These 8 slots cover 5:45, 6:00, 6:15, 6:30
+    # Eastern Time for both EDT (UTC-4) and EST (UTC-5). slot_guard.py inside
+    # the job filters to the real ET slot + skips weekends/holidays.
+    # EDT (Mar-Nov): 09:45, 10:00, 10:15, 10:30 UTC
+    - cron: "45 9 * * 1-5"
+    - cron: "0 10 * * 1-5"
+    - cron: "15 10 * * 1-5"
+    - cron: "30 10 * * 1-5"
+    # EST (Nov-Mar): 10:45, 11:00, 11:15, 11:30 UTC
+    - cron: "45 10 * * 1-5"
+    - cron: "0 11 * * 1-5"
+    - cron: "15 11 * * 1-5"
+    - cron: "30 11 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: commute-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Decide whether to run (ET slot + workday gate)
+        id: guard
+        run: |
+          set +e
+          slot=$(python scripts/slot_guard.py)
+          code=$?
+          set -e
+          if [ $code -eq 10 ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ $code -ne 0 ]; then
+            exit $code
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "slot=$slot" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch routes from TomTom
+        if: steps.guard.outputs.run == 'true'
+        env:
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+          HOME_COORDS: ${{ secrets.HOME_COORDS }}
+          OFFICE_COORDS: ${{ secrets.OFFICE_COORDS }}
+          ET_SLOT: ${{ steps.guard.outputs.slot }}
+        run: python scripts/fetch_routes.py
+
+      - name: Commit snapshot
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          git config user.name  "commute-bot"
+          git config user.email "commute-bot@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+            exit 0
+          fi
+          git commit -m "snapshot: ${{ steps.guard.outputs.slot }} ET"
+          git push
