@@ -27,6 +27,15 @@ const fmtDelay = (seconds) => {
   return { text, cls };
 };
 
+const fmt12h = (hhmm) => {
+  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return hhmm || "—";
+  const [hStr, mStr] = hhmm.split(":");
+  let h = parseInt(hStr, 10);
+  const suffix = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${mStr} ${suffix}`;
+};
+
 const fmtTimestamp = (iso) => {
   if (!iso) return "unknown";
   try {
@@ -61,7 +70,7 @@ const buildCard = (route, isRecommended) => {
       ${route.label.replace("_", " ")}
       ${isRecommended ? '<span class="badge">recommended</span>' : ""}
     </div>
-    <div class="eta">${route.summary?.arrival_et || "—"}</div>
+    <div class="eta">${fmt12h(route.summary?.arrival_et)}</div>
     <div class="stats">
       <div><span>total</span>${fmtMinutes(route.summary?.duration_s)}</div>
       <div><span>distance</span>${fmtMiles(route.summary?.distance_m)}</div>
