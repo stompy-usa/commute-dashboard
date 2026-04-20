@@ -88,4 +88,12 @@ jobs:
             exit 0
           fi
           git commit -m "snapshot: ${{ steps.guard.outputs.slot }} ET"
-          git push
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected on attempt $attempt; rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "push failed after 3 attempts"
+          exit 1
