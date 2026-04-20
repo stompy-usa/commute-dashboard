@@ -8,19 +8,22 @@ on:
         type: boolean
         default: false
   schedule:
-    # GitHub Actions cron is UTC-only. These 8 slots cover 5:45, 6:00, 6:15, 6:30
-    # Eastern Time for both EDT (UTC-4) and EST (UTC-5). slot_guard.py inside
-    # the job filters to the real ET slot + skips weekends/holidays.
-    # EDT (Mar-Nov): 09:45, 10:00, 10:15, 10:30 UTC
-    - cron: "45 9 * * 1-5"
-    - cron: "0 10 * * 1-5"
-    - cron: "15 10 * * 1-5"
-    - cron: "30 10 * * 1-5"
-    # EST (Nov-Mar): 10:45, 11:00, 11:15, 11:30 UTC
-    - cron: "45 10 * * 1-5"
-    - cron: "0 11 * * 1-5"
-    - cron: "15 11 * * 1-5"
-    - cron: "30 11 * * 1-5"
+    # GitHub Actions cron is UTC-only and silently drops scheduled runs during
+    # high cluster load (especially top-of-hour and :30). Each ET slot is fired
+    # 3 times within slot_guard's 7-min tolerance window so a single drop
+    # doesn't lose the snapshot. slot_guard.py picks the right slot label and
+    # exits silently if the slot was already captured (so duplicate firings
+    # don't double-commit).
+    # EDT (Mar-Nov): 5:45, 6:00, 6:15, 6:30 ET
+    - cron: "45,48,51 9 * * 1-5"
+    - cron: "0,3,6 10 * * 1-5"
+    - cron: "15,18,21 10 * * 1-5"
+    - cron: "30,33,36 10 * * 1-5"
+    # EST (Nov-Mar): same ET slots, +1 hour UTC
+    - cron: "45,48,51 10 * * 1-5"
+    - cron: "0,3,6 11 * * 1-5"
+    - cron: "15,18,21 11 * * 1-5"
+    - cron: "30,33,36 11 * * 1-5"
 
 permissions:
   contents: write

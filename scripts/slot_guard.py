@@ -13,14 +13,24 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from holiday_check import is_us_federal_holiday
 
 ET = ZoneInfo("America/New_York")
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = REPO_ROOT / "docs" / "data"
+
 ALLOWED_SLOTS = [(5, 45), (6, 0), (6, 15), (6, 30)]
 TOLERANCE_MIN = 7  # minutes; cron firing jitter on GitHub Actions is ~1-5 min
+
+
+def already_captured(now_et: datetime, slot: str) -> bool:
+    slot_name = slot.replace(":", "")
+    path = DATA_DIR / f"{now_et:%Y}" / f"{now_et:%m}" / f"{now_et:%d}" / f"{slot_name}.json"
+    return path.exists()
 
 
 def pick_slot(now_et: datetime) -> str | None:
@@ -46,6 +56,10 @@ def main() -> int:
     slot = pick_slot(now_et)
     if slot is None:
         print(f"skip: off-slot ET={now_et:%H:%M}", file=sys.stderr)
+        return 10
+
+    if already_captured(now_et, slot):
+        print(f"skip: slot {slot} already captured today", file=sys.stderr)
         return 10
 
     print(slot)
