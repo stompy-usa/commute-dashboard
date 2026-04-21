@@ -89,8 +89,8 @@ jobs:
           PERIOD_OVERRIDE: ${{ inputs.period }}
         run: python scripts/fetch_routes.py
 
-      - name: Email commute summary (final slot only)
-        if: steps.guard.outputs.run == 'true' && (steps.guard.outputs.slot == '06:30' || steps.guard.outputs.slot == '16:00')
+      - name: Email commute summary (final slot or manual)
+        if: steps.guard.outputs.run == 'true' && (steps.guard.outputs.slot == '06:30' || steps.guard.outputs.slot == '16:00' || steps.guard.outputs.slot == 'manual')
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
