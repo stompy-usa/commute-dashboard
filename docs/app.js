@@ -1,7 +1,16 @@
 const DATA_URL = "data/latest.json";
 const INDEX_URL = "data/index.json";
 
-const SCHEDULED_SLOTS = ["05:45", "06:00", "06:15", "06:30"];
+const MORNING_SLOTS = ["05:45", "06:00", "06:15", "06:30"];
+const EVENING_SLOTS = ["15:15", "15:30", "15:45", "16:00"];
+
+const derivePeriod = (slot) => {
+  if (!slot || !/^\d{1,2}:\d{2}$/.test(slot)) return "morning";
+  return parseInt(slot.split(":")[0], 10) < 12 ? "morning" : "evening";
+};
+
+const periodLabel = (p) =>
+  p === "evening" ? "Evening commute (office \u2192 home)" : "Morning commute (home \u2192 office)";
 
 const ROUTE_COLORS = {
   primary: "#22c55e",
@@ -313,7 +322,7 @@ const todayETPath = () => {
   return `${pick("year")}/${pick("month")}/${pick("day")}`;
 };
 
-const loadTodaySnapshots = async () => {
+const loadTodaySnapshots = async (period) => {
   let index;
   try {
     const r = await fetch(INDEX_URL, { cache: "no-store" });
@@ -324,11 +333,10 @@ const loadTodaySnapshots = async () => {
   }
   if (!Array.isArray(index)) return [];
 
+  const slots = period === "evening" ? EVENING_SLOTS : MORNING_SLOTS;
   const prefix = todayETPath() + "/";
   const matches = index.filter(
-    (e) =>
-      e?.path?.startsWith(prefix) &&
-      SCHEDULED_SLOTS.includes(e.et_slot)
+    (e) => e?.path?.startsWith(prefix) && slots.includes(e.et_slot)
   );
 
   const snaps = await Promise.all(
@@ -361,8 +369,9 @@ const fastestRoute = (routes) =>
         (b.summary?.duration_s ?? Infinity)
     )[0];
 
-const renderSummary = (snaps) => {
+const renderSummary = (snaps, period) => {
   const el = document.getElementById("summary");
+  const trendTitle = period === "evening" ? "Evening trend" : "Morning trend";
   if (!snaps.length) {
     el.hidden = true;
     el.innerHTML = "";
@@ -424,7 +433,7 @@ const renderSummary = (snaps) => {
     .join("");
 
   el.innerHTML = `
-    <div class="summary-title"><span>Morning trend</span>${trendHtml}</div>
+    <div class="summary-title"><span>${trendTitle}</span>${trendHtml}</div>
     ${alertHtml}
     <table class="summary-table">
       <thead><tr><th>Slot</th><th>Fastest</th><th>Total</th><th>Traffic</th><th>ETA</th></tr></thead>
@@ -444,10 +453,13 @@ const load = async () => {
     return;
   }
 
+  const period = snapshot.period || derivePeriod(snapshot.et_slot);
+
   document.getElementById("updated").textContent =
     `updated ${fmtTimestamp(snapshot.captured_at)}`;
+  document.getElementById("period").textContent = periodLabel(period);
   document.getElementById("slot").textContent = snapshot.et_slot
-    ? `slot ${snapshot.et_slot} ET`
+    ? `slot ${fmt12h(snapshot.et_slot)} ET`
     : "";
 
   const routes = snapshot.routes || [];
@@ -466,8 +478,8 @@ const load = async () => {
 
   initMap(routes);
 
-  const todaySnaps = await loadTodaySnapshots();
-  renderSummary(todaySnaps);
+  const todaySnaps = await loadTodaySnapshots(period);
+  renderSummary(todaySnaps, period);
 };
 
 load();

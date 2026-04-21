@@ -23,7 +23,12 @@ ET = ZoneInfo("America/New_York")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "docs" / "data"
 
-ALLOWED_SLOTS = [(5, 45), (6, 0), (6, 15), (6, 30)]
+ALLOWED_SLOTS = [
+    # Morning (home -> office)
+    (5, 45), (6, 0), (6, 15), (6, 30),
+    # Evening (office -> home)
+    (15, 15), (15, 30), (15, 45), (16, 0),
+]
 TOLERANCE_MIN = 7  # minutes; cron firing jitter on GitHub Actions is ~1-5 min
 
 

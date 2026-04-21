@@ -52,6 +52,21 @@ header .meta {
   font-size: 13px;
   display: flex;
   gap: 14px;
+  align-items: center;
+}
+
+header .meta .period {
+  color: var(--fg);
+  font-weight: 600;
+  background: rgba(79, 195, 247, 0.12);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+header .meta .period:empty {
+  display: none;
 }
 
 main {

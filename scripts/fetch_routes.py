@@ -75,7 +75,15 @@ def call_tomtom(
     return resp.json()
 
 
-def build_snapshot(raw: dict, et_slot: str) -> dict:
+def derive_period(et_slot: str) -> str:
+    try:
+        hour = int(et_slot.split(":")[0])
+    except (ValueError, IndexError):
+        return "morning"
+    return "morning" if hour < 12 else "evening"
+
+
+def build_snapshot(raw: dict, et_slot: str, period: str) -> dict:
     captured_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     routes_out: list[dict] = []
     for i, route in enumerate(raw.get("routes", [])):
@@ -130,6 +138,7 @@ def build_snapshot(raw: dict, et_slot: str) -> dict:
     return {
         "captured_at": captured_at,
         "et_slot": et_slot,
+        "period": period,
         "routes": routes_out,
     }
 
@@ -182,11 +191,14 @@ def main() -> int:
     office = parse_coords(env_required("OFFICE_COORDS"), "OFFICE_COORDS")
     et_slot = os.environ.get("ET_SLOT", "").strip() or infer_slot()
 
-    raw = call_tomtom(api_key, home, office)
-    snapshot = build_snapshot(raw, et_slot)
+    period = derive_period(et_slot)
+    origin, destination = (office, home) if period == "evening" else (home, office)
+
+    raw = call_tomtom(api_key, origin, destination)
+    snapshot = build_snapshot(raw, et_slot, period)
     target = write_snapshot(snapshot)
 
-    print(f"wrote {target.relative_to(REPO_ROOT).as_posix()}  ({len(snapshot['routes'])} routes)")
+    print(f"wrote {target.relative_to(REPO_ROOT).as_posix()}  ({period}, {len(snapshot['routes'])} routes)")
     return 0
 
 
