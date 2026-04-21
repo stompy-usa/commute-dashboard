@@ -12,8 +12,8 @@ on:
         type: choice
         options:
           - auto
-          - morning
-          - evening
+          - home-to-office
+          - office-to-home
         default: auto
   schedule:
     # GitHub Actions cron is UTC-only and silently drops scheduled runs during

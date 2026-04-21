@@ -192,7 +192,12 @@ def main() -> int:
     et_slot = os.environ.get("ET_SLOT", "").strip() or infer_slot()
 
     override = os.environ.get("PERIOD_OVERRIDE", "").strip().lower()
-    period = override if override in ("morning", "evening") else derive_period(et_slot)
+    period = {
+        "morning": "morning",
+        "evening": "evening",
+        "home-to-office": "morning",
+        "office-to-home": "evening",
+    }.get(override) or derive_period(et_slot)
     origin, destination = (office, home) if period == "evening" else (home, office)
 
     raw = call_tomtom(api_key, origin, destination)
