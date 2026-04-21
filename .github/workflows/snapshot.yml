@@ -7,6 +7,14 @@ on:
         description: "Bypass slot/workday guard (manual runs only)"
         type: boolean
         default: false
+      period:
+        description: "Commute direction (only used with force=true)"
+        type: choice
+        options:
+          - auto
+          - morning
+          - evening
+        default: auto
   schedule:
     # GitHub Actions cron is UTC-only and silently drops scheduled runs during
     # high cluster load (especially top-of-hour and :30). Each ET slot is fired
@@ -88,6 +96,7 @@ jobs:
           HOME_COORDS: ${{ secrets.HOME_COORDS }}
           OFFICE_COORDS: ${{ secrets.OFFICE_COORDS }}
           ET_SLOT: ${{ steps.guard.outputs.slot }}
+          PERIOD_OVERRIDE: ${{ inputs.period }}
         run: python scripts/fetch_routes.py
 
       - name: Commit snapshot

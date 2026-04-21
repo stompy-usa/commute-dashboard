@@ -191,7 +191,8 @@ def main() -> int:
     office = parse_coords(env_required("OFFICE_COORDS"), "OFFICE_COORDS")
     et_slot = os.environ.get("ET_SLOT", "").strip() or infer_slot()
 
-    period = derive_period(et_slot)
+    override = os.environ.get("PERIOD_OVERRIDE", "").strip().lower()
+    period = override if override in ("morning", "evening") else derive_period(et_slot)
     origin, destination = (office, home) if period == "evening" else (home, office)
 
     raw = call_tomtom(api_key, origin, destination)
