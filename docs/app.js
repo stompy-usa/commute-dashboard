@@ -139,19 +139,23 @@ const buildCard = (route, isRecommended) => {
       <div><span>distance</span>${fmtMiles(route.summary?.distance_m)}</div>
       <div><span>traffic delay</span><span class="${delay.cls}">${delay.text}</span></div>
     </div>
-    <div class="card-hint">${hasDirections ? "tap to focus + directions" : "tap to focus on map"}</div>
+    <div class="card-hint">tap to focus on map</div>
   `;
   const toggle = () => {
-    if (!hasDirections) {
-      focusRoute(route.label);
+    if (mapState.selected === route.label) {
+      showAllRoutes();
       document
-        .querySelectorAll(".card")
-        .forEach((c) => c.classList.toggle("selected", c === card));
+        .querySelectorAll(".card.selected")
+        .forEach((c) => c.classList.remove("selected"));
+      closeDirections();
       return;
     }
-    const panelOpen = !document.getElementById("directions").hidden;
-    if (panelOpen && mapState.selected === route.label) closeDirections();
-    else openDirections(route);
+    focusRoute(route.label);
+    document
+      .querySelectorAll(".card")
+      .forEach((c) => c.classList.toggle("selected", c === card));
+    const panel = document.getElementById("directions");
+    if (!panel.hidden && hasDirections) renderDirections(route);
   };
   card.addEventListener("click", toggle);
   card.addEventListener("keydown", (e) => {
@@ -163,15 +167,8 @@ const buildCard = (route, isRecommended) => {
   return card;
 };
 
-const openDirections = (route) => {
-  const panel = document.getElementById("directions");
+const renderDirections = (route) => {
   const stepsEl = document.getElementById("dir-steps");
-  document
-    .querySelectorAll(".card")
-    .forEach((c) =>
-      c.classList.toggle("selected", c.dataset.label === route.label)
-    );
-
   document.getElementById("dir-route").textContent =
     route.label.replace("_", " ") + " route";
   const s = route.summary || {};
@@ -199,28 +196,39 @@ const openDirections = (route) => {
       `;
     })
     .join("");
+};
 
-  panel.hidden = false;
-  focusRoute(route.label);
-  invalidateSoon();
+const openDirections = (route) => {
+  if (!route) return;
+  renderDirections(route);
+  document.getElementById("directions").hidden = false;
+  document.getElementById("dir-toggle")?.classList.add("open");
 };
 
 const closeDirections = () => {
+  document.getElementById("directions").hidden = true;
+  document.getElementById("dir-toggle")?.classList.remove("open");
+};
+
+const findRoute = (label) =>
+  mapState.routes.find((r) => r.label === label) || null;
+
+const toggleDirections = () => {
   const panel = document.getElementById("directions");
-  panel.hidden = true;
-  panel.classList.remove("expanded");
-  document
-    .querySelectorAll(".card.selected")
-    .forEach((c) => c.classList.remove("selected"));
-  showAllRoutes();
-  invalidateSoon();
+  if (!panel.hidden) {
+    closeDirections();
+    return;
+  }
+  const route =
+    findRoute(mapState.selected) ||
+    findRoute("primary") ||
+    mapState.routes[0];
+  if (route && (route.instructions || []).length) openDirections(route);
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("dir-close")?.addEventListener("click", closeDirections);
-  document.getElementById("dir-handle")?.addEventListener("click", () => {
-    document.getElementById("directions").classList.toggle("expanded");
-  });
+  document.getElementById("dir-toggle")?.addEventListener("click", toggleDirections);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeDirections();
   });
@@ -278,14 +286,18 @@ const finishIcon = () =>
   });
 
 const initMap = (routes, period) => {
-  const map = L.map("map");
+  const map = L.map("map", { attributionControl: false });
+  L.control
+    .attribution({ prefix: false })
+    .addAttribution(
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    )
+    .addTo(map);
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     {
       maxZoom: 19,
       subdomains: "abcd",
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     }
   ).addTo(map);
 
