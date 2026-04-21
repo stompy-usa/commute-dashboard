@@ -514,19 +514,18 @@ footer a {
     font-size: 11px;
   }
 
-  /* horizontal scrolling row of compact cards */
+  /* even three-column banner of compact cards */
   #cards {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: visible;
     padding: 6px 10px;
     gap: 6px;
   }
 
   .card {
-    flex-shrink: 0;
-    width: 32%;
-    min-width: 118px;
+    width: auto;
+    min-width: 0;
     padding: 6px 9px;
   }
 
