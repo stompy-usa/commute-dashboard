@@ -48,6 +48,8 @@ def main() -> int:
     f_sum = fastest["summary"]
     f_eta = f_sum.get("arrival_et", "?")
 
+    dashboard_url = os.environ.get("DASHBOARD_URL") or "https://stompy-usa.github.io/commute-dashboard/"
+
     lines = [
         f"Commute snapshot - {direction} ({slot} ET)",
         "",
@@ -56,6 +58,8 @@ def main() -> int:
         f"  Drive time: {fmt_duration(f_sum['duration_s'])}",
         f"  Delay: {fmt_duration(f_sum.get('traffic_delay_s', 0))}",
         f"  Distance: {fmt_miles(f_sum['distance_m'])} mi",
+        "",
+        f"Live map: {dashboard_url}",
         "",
         "All options:",
     ]
