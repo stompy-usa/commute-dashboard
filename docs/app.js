@@ -194,12 +194,15 @@ const openDirections = (route) => {
     .join("");
 
   panel.hidden = false;
+  panel.classList.add("expanded");
   focusRoute(route.label);
   invalidateSoon();
 };
 
 const closeDirections = () => {
-  document.getElementById("directions").hidden = true;
+  const panel = document.getElementById("directions");
+  panel.hidden = true;
+  panel.classList.remove("expanded");
   document
     .querySelectorAll(".card.selected")
     .forEach((c) => c.classList.remove("selected"));
@@ -209,6 +212,9 @@ const closeDirections = () => {
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("dir-close")?.addEventListener("click", closeDirections);
+  document.getElementById("dir-handle")?.addEventListener("click", () => {
+    document.getElementById("directions").classList.toggle("expanded");
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeDirections();
   });

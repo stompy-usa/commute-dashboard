@@ -416,6 +416,10 @@ footer a {
   color: var(--fg);
 }
 
+#dir-handle {
+  display: none;
+}
+
 @media (max-width: 780px) {
   html {
     font-size: 15px;
@@ -438,64 +442,167 @@ footer a {
 
   main {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(45vh, 1fr);
+    grid-template-rows: auto 1fr;
   }
 
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 52vh;
+    max-height: none;
+    flex-shrink: 0;
   }
 
+  /* compact one-line trend badge — hide the table and alert on mobile */
   #summary {
-    padding: 10px 12px;
+    padding: 6px 12px;
   }
 
-  .summary-table th,
-  .summary-table td {
-    padding: 4px 3px;
-    font-size: 12px;
+  #summary .summary-alert,
+  #summary .summary-table {
+    display: none;
   }
 
+  #summary .summary-title {
+    margin-bottom: 0;
+    font-size: 11px;
+  }
+
+  /* horizontal scrolling row of compact cards */
   #cards {
-    padding: 12px;
-    gap: 10px;
-  }
-
-  #directions {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    border-right: none;
-    z-index: 500;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 10px;
+    gap: 8px;
   }
 
   .card {
-    padding: 12px;
+    flex-shrink: 0;
+    width: 32%;
+    min-width: 120px;
+    padding: 8px 10px;
+  }
+
+  .card .label {
+    font-size: 11px;
+    margin-bottom: 2px;
   }
 
   .card .eta {
-    font-size: 32px;
+    font-size: 18px;
+    margin-bottom: 2px;
   }
 
   .card .stats {
-    font-size: 14px;
-    gap: 6px;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .card .stats div {
+    flex-direction: row;
+    gap: 4px;
+    align-items: baseline;
+  }
+
+  .card .stats span {
+    font-size: 10px;
+  }
+
+  .card-hint {
+    display: none;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 1px 4px;
+    margin-left: 4px;
+  }
+
+  /* bottom sheet: peek by default, expands to ~70vh on tap */
+  #directions {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: auto;
+    height: 92px;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    z-index: 500;
+    transition: height 0.22s ease;
+    background: var(--card);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  #directions.expanded {
+    height: 70vh;
+  }
+
+  #dir-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px 0 2px;
+    gap: 2px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .dir-handle-bar {
+    width: 40px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .dir-handle-arrow {
+    font-size: 10px;
+    line-height: 1;
+    color: var(--muted);
+  }
+
+  .dir-handle-arrow::before {
+    content: "\25B2";
+  }
+
+  #directions.expanded .dir-handle-arrow::before {
+    content: "\25BC";
+  }
+
+  .dir-head {
+    padding: 6px 14px 10px;
+  }
+
+  .dir-route {
+    font-size: 15px;
+  }
+
+  .dir-sub {
+    font-size: 11px;
+  }
+
+  #dir-close {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+
+  #dir-steps li {
+    padding: 8px 14px;
   }
 
   footer {
     padding: 6px 14px;
     font-size: 11px;
-  }
-}
-
-@media (max-width: 480px) {
-  .card .stats {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .summary-table th:nth-child(2),
-  .summary-table td:nth-child(2) {
-    display: none;
   }
 }
