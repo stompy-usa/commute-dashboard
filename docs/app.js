@@ -1,8 +1,14 @@
 const DATA_URL = "data/latest.json";
 const INDEX_URL = "data/index.json";
 
-const MORNING_SLOTS = ["05:45", "06:00", "06:15", "06:30"];
-const EVENING_SLOTS = ["15:15", "15:30", "15:45", "16:00"];
+const MORNING_SLOTS = [
+  "05:45", "05:50", "05:55",
+  "06:00", "06:05", "06:10", "06:15", "06:20", "06:25", "06:30",
+];
+const EVENING_SLOTS = [
+  "15:15", "15:20", "15:25", "15:30", "15:35",
+  "15:40", "15:45", "15:50", "15:55", "16:00",
+];
 
 const derivePeriod = (slot) => {
   if (!slot || !/^\d{1,2}:\d{2}$/.test(slot)) return "morning";
@@ -390,6 +396,7 @@ const fastestRoute = (routes) =>
 const renderSummary = (snaps, period) => {
   const el = document.getElementById("summary");
   const trendTitle = period === "evening" ? "Evening trend" : "Morning trend";
+  const totalSlots = (period === "evening" ? EVENING_SLOTS : MORNING_SLOTS).length;
   if (!snaps.length) {
     el.hidden = true;
     el.innerHTML = "";
@@ -418,7 +425,7 @@ const renderSummary = (snaps, period) => {
     else
       trendHtml = `<span class="trend">flat (&plusmn;${Math.abs(delta)} min)</span>`;
   } else {
-    trendHtml = `<span class="trend">${rows.length} of 4 slots so far</span>`;
+    trendHtml = `<span class="trend">${rows.length} of ${totalSlots} slots so far</span>`;
   }
 
   const worst = rows.reduce(

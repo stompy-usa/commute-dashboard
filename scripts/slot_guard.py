@@ -24,12 +24,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "docs" / "data"
 
 ALLOWED_SLOTS = [
-    # Morning (home -> office)
-    (5, 45), (6, 0), (6, 15), (6, 30),
-    # Evening (office -> home)
-    (15, 15), (15, 30), (15, 45), (16, 0),
+    # Morning (home -> office), every 5 min from 5:45 to 6:30 ET
+    (5, 45), (5, 50), (5, 55),
+    (6, 0), (6, 5), (6, 10), (6, 15), (6, 20), (6, 25), (6, 30),
+    # Evening (office -> home), every 5 min from 3:15 to 4:00 PM ET
+    (15, 15), (15, 20), (15, 25), (15, 30), (15, 35),
+    (15, 40), (15, 45), (15, 50), (15, 55),
+    (16, 0),
 ]
-TOLERANCE_MIN = 7  # minutes; cron firing jitter on GitHub Actions is ~1-5 min
+# Slots are 5 min apart, so tolerance must stay <= 2 to keep them distinct.
+# Off-slot cron jitter just shifts the assignment to the nearer slot.
+TOLERANCE_MIN = 2
 
 
 def already_captured(now_et: datetime, slot: str) -> bool:

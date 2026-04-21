@@ -16,32 +16,22 @@ on:
           - office-to-home
         default: auto
   schedule:
-    # GitHub Actions cron is UTC-only and silently drops scheduled runs during
-    # high cluster load (especially top-of-hour and :30). Each ET slot is fired
-    # 3 times within slot_guard's 7-min tolerance window so a single drop
-    # doesn't lose the snapshot. slot_guard.py picks the right slot label and
-    # exits silently if the slot was already captured (so duplicate firings
-    # don't double-commit).
-    # Morning home->office, EDT (Mar-Nov): 5:45, 6:00, 6:15, 6:30 ET
-    - cron: "45,48,51 9 * * 1-5"
-    - cron: "0,3,6 10 * * 1-5"
-    - cron: "15,18,21 10 * * 1-5"
-    - cron: "30,33,36 10 * * 1-5"
-    # Morning, EST (Nov-Mar): same ET slots, +1 hour UTC
-    - cron: "45,48,51 10 * * 1-5"
-    - cron: "0,3,6 11 * * 1-5"
-    - cron: "15,18,21 11 * * 1-5"
-    - cron: "30,33,36 11 * * 1-5"
-    # Evening office->home, EDT: 3:15, 3:30, 3:45, 4:00 PM ET
-    - cron: "15,18,21 19 * * 1-5"
-    - cron: "30,33,36 19 * * 1-5"
-    - cron: "45,48,51 19 * * 1-5"
-    - cron: "0,3,6 20 * * 1-5"
-    # Evening, EST: same ET slots, +1 hour UTC
-    - cron: "15,18,21 20 * * 1-5"
-    - cron: "30,33,36 20 * * 1-5"
-    - cron: "45,48,51 20 * * 1-5"
-    - cron: "0,3,6 21 * * 1-5"
+    # GitHub Actions cron is UTC-only. Fires every 5 minutes across each
+    # 45-min commute window (5-min is GitHub's minimum cron interval).
+    # slot_guard.py assigns each firing to the nearest 5-min slot and
+    # skips off-window times, weekends, and US federal holidays.
+    # Morning home->office, EDT: 5:45-6:30 ET = 9:45-10:30 UTC
+    - cron: "45,50,55 9 * * 1-5"
+    - cron: "0,5,10,15,20,25,30 10 * * 1-5"
+    # Morning, EST: +1 hour UTC
+    - cron: "45,50,55 10 * * 1-5"
+    - cron: "0,5,10,15,20,25,30 11 * * 1-5"
+    # Evening office->home, EDT: 3:15-4:00 PM ET = 19:15-20:00 UTC
+    - cron: "15,20,25,30,35,40,45,50,55 19 * * 1-5"
+    - cron: "0 20 * * 1-5"
+    # Evening, EST: +1 hour UTC
+    - cron: "15,20,25,30,35,40,45,50,55 20 * * 1-5"
+    - cron: "0 21 * * 1-5"
 
 permissions:
   contents: write
