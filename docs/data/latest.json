@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-04-21T03:27:44Z",
+  "captured_at": "2026-04-21T03:30:48Z",
   "et_slot": "manual",
   "period": "morning",
   "routes": [
@@ -9,7 +9,7 @@
         "distance_m": 14814,
         "duration_s": 806,
         "traffic_delay_s": 0,
-        "arrival_et": "23:41"
+        "arrival_et": "23:44"
       },
       "polyline": [
         [
@@ -1697,7 +1697,7 @@
         "distance_m": 15246,
         "duration_s": 1347,
         "traffic_delay_s": 0,
-        "arrival_et": "23:50"
+        "arrival_et": "23:53"
       },
       "polyline": [
         [
@@ -3819,7 +3819,7 @@
         "distance_m": 13801,
         "duration_s": 1492,
         "traffic_delay_s": 0,
-        "arrival_et": "23:52"
+        "arrival_et": "23:55"
       },
       "polyline": [
         [
