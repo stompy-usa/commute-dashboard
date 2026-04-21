@@ -16,22 +16,18 @@ on:
           - office-to-home
         default: auto
   schedule:
-    # GitHub Actions cron is UTC-only. Fires every 5 minutes across each
-    # 45-min commute window (5-min is GitHub's minimum cron interval).
-    # slot_guard.py assigns each firing to the nearest 5-min slot and
-    # skips off-window times, weekends, and US federal holidays.
-    # Morning home->office, EDT: 5:45-6:30 ET = 9:45-10:30 UTC
-    - cron: "45,50,55 9 * * 1-5"
-    - cron: "0,5,10,15,20,25,30 10 * * 1-5"
-    # Morning, EST: +1 hour UTC
-    - cron: "45,50,55 10 * * 1-5"
-    - cron: "0,5,10,15,20,25,30 11 * * 1-5"
-    # Evening office->home, EDT: 3:15-4:00 PM ET = 19:15-20:00 UTC
-    - cron: "15,20,25,30,35,40,45,50,55 19 * * 1-5"
-    - cron: "0 20 * * 1-5"
-    # Evening, EST: +1 hour UTC
-    - cron: "15,20,25,30,35,40,45,50,55 20 * * 1-5"
-    - cron: "0 21 * * 1-5"
+    # GitHub Actions cron has a 5-min floor and silently drops firings under
+    # load. Each window uses two staggered every-5-min lines (offset by 2 min)
+    # across a 3-hour range that covers both EST and EDT. That gives every
+    # real slot two firing chances within slot_guard's +/-2 min tolerance, so
+    # a single drop still leaves a snapshot. slot_guard.py filters off-window
+    # and already-captured firings.
+    # Morning window: 5:45-6:30 ET (= 9:45-10:30 UTC EDT, 10:45-11:30 UTC EST)
+    - cron: "*/5 9-11 * * 1-5"
+    - cron: "2-57/5 9-11 * * 1-5"
+    # Evening window: 3:15-4:00 PM ET (= 19:15-20:00 UTC EDT, 20:15-21:00 UTC EST)
+    - cron: "*/5 19-21 * * 1-5"
+    - cron: "2-57/5 19-21 * * 1-5"
 
 permissions:
   contents: write
