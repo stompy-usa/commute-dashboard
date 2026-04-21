@@ -425,16 +425,17 @@ footer a {
   header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
-    padding: 10px 14px;
+    gap: 2px;
+    padding: 6px 14px;
   }
 
   header h1 {
-    font-size: 17px;
+    font-size: 15px;
   }
 
   header .meta {
-    font-size: 12px;
+    font-size: 11px;
+    gap: 10px;
   }
 
   main {
@@ -451,7 +452,7 @@ footer a {
 
   /* compact one-line trend badge — hide the table and alert on mobile */
   #summary {
-    padding: 6px 12px;
+    padding: 4px 12px;
   }
 
   #summary .summary-alert,
@@ -469,32 +470,32 @@ footer a {
     flex-direction: row;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 8px 10px;
-    gap: 8px;
+    padding: 6px 10px;
+    gap: 6px;
   }
 
   .card {
     flex-shrink: 0;
     width: 32%;
-    min-width: 120px;
-    padding: 8px 10px;
+    min-width: 118px;
+    padding: 6px 9px;
   }
 
   .card .label {
-    font-size: 11px;
-    margin-bottom: 2px;
+    font-size: 10px;
+    margin-bottom: 1px;
   }
 
   .card .eta {
-    font-size: 18px;
-    margin-bottom: 2px;
+    font-size: 16px;
+    margin-bottom: 0;
   }
 
   .card .stats {
     grid-template-columns: 1fr;
-    gap: 2px;
-    font-size: 11px;
-    margin-top: 4px;
+    gap: 1px;
+    font-size: 10px;
+    margin-top: 2px;
   }
 
   .card .stats div {
@@ -525,7 +526,7 @@ footer a {
     bottom: 0;
     top: auto;
     width: auto;
-    height: 92px;
+    height: 72px;
     border-right: none;
     border-top: 1px solid var(--border);
     border-top-left-radius: 14px;
