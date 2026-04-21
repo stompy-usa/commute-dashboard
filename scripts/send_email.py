@@ -77,8 +77,8 @@ def main() -> int:
     msg["To"] = os.environ["EMAIL_TO"]
     msg.set_content(body)
 
-    host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    port = int(os.environ.get("SMTP_PORT", "587"))
+    host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+    port = int(os.environ.get("SMTP_PORT") or "587")
     user = os.environ["SMTP_USER"]
     password = os.environ["SMTP_PASSWORD"]
 
