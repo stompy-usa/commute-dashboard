@@ -149,7 +149,8 @@ const buildCard = (route, isRecommended) => {
         .forEach((c) => c.classList.toggle("selected", c === card));
       return;
     }
-    if (mapState.selected === route.label) closeDirections();
+    const panelOpen = !document.getElementById("directions").hidden;
+    if (panelOpen && mapState.selected === route.label) closeDirections();
     else openDirections(route);
   };
   card.addEventListener("click", toggle);
@@ -622,6 +623,13 @@ const load = async () => {
   });
 
   initMap(routes, period);
+
+  if (routes.some((r) => r.label === "primary")) {
+    focusRoute("primary");
+    document
+      .querySelector('.card[data-label="primary"]')
+      ?.classList.add("selected");
+  }
 
   const todaySnaps = await loadTodaySnapshots(period);
   renderSummary(todaySnaps, period);
