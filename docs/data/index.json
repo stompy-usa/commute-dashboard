@@ -1,5 +1,10 @@
 [
   {
+    "path": "data/2026/04/21/manual.json",
+    "captured_at": "2026-04-21T22:22:06Z",
+    "et_slot": "manual"
+  },
+  {
     "path": "data/2026/04/20/manual.json",
     "captured_at": "2026-04-21T03:35:14Z",
     "et_slot": "manual"
