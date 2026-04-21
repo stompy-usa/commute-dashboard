@@ -194,7 +194,6 @@ const openDirections = (route) => {
     .join("");
 
   panel.hidden = false;
-  panel.classList.add("expanded");
   focusRoute(route.label);
   invalidateSoon();
 };

@@ -185,9 +185,6 @@ main {
   border-left-color: var(--alt2);
 }
 
-.card.recommended {
-  outline: 2px solid var(--accent);
-}
 
 .card .label {
   font-size: 12px;
