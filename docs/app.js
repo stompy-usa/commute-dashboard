@@ -18,10 +18,16 @@ const derivePeriod = (slot) => {
 const periodLabel = (p) =>
   p === "evening" ? "Evening commute (office \u2192 home)" : "Morning commute (home \u2192 office)";
 
-const ROUTE_COLORS = {
-  primary: "#22c55e",
-  alt_1: "#f59e0b",
-  alt_2: "#ef4444",
+const ROUTE_BASE_COLOR = "#22c55e";
+const TRAFFIC_OVERLAY_COLORS = {
+  1: "#facc15",
+  2: "#f59e0b",
+  3: "#ef4444",
+};
+const ROUTE_WEIGHTS = {
+  primary: 7,
+  alt_1: 5,
+  alt_2: 4,
 };
 
 const fmtMinutes = (seconds) => {
@@ -291,14 +297,42 @@ const initMap = (routes, period) => {
 
   routes.forEach((route) => {
     if (!route.polyline?.length) return;
-    const color = ROUTE_COLORS[route.label] || "#888";
-    const isPrimary = route.label === "primary";
-    const line = L.polyline(route.polyline, {
-      color,
-      weight: isPrimary ? 6 : 4,
-      opacity: isPrimary ? 0.95 : 0.75,
+    const weight = ROUTE_WEIGHTS[route.label] ?? 4;
+    const baseLine = L.polyline(route.polyline, {
+      color: ROUTE_BASE_COLOR,
+      weight,
+      opacity: 0.9,
     }).addTo(map);
-    mapState.polylines.set(route.label, line);
+
+    const overlayLines = [];
+    for (const section of route.traffic_sections || []) {
+      const start = section.start_idx;
+      const end = section.end_idx;
+      if (
+        typeof start !== "number" ||
+        typeof end !== "number" ||
+        start >= end ||
+        start < 0 ||
+        end >= route.polyline.length
+      ) {
+        continue;
+      }
+      const overlayColor = TRAFFIC_OVERLAY_COLORS[section.magnitude];
+      if (!overlayColor) continue;
+      const segment = route.polyline.slice(start, end + 1);
+      if (segment.length < 2) continue;
+      const overlay = L.polyline(segment, {
+        color: overlayColor,
+        weight: weight + 1,
+        opacity: 0.95,
+      }).addTo(map);
+      overlayLines.push(overlay);
+    }
+
+    mapState.polylines.set(route.label, {
+      base: baseLine,
+      overlays: overlayLines,
+    });
   });
 
   if (routes[0]?.polyline?.length) {
@@ -368,13 +402,27 @@ const updateMask = () => {
   mask.setLatLngs(innerRings.length ? [WORLD_RING, ...innerRings] : [WORLD_RING]);
 };
 
+const layersFor = (entry) =>
+  entry ? [entry.base, ...(entry.overlays || [])].filter(Boolean) : [];
+
+const addRouteLayers = (map, entry) => {
+  layersFor(entry).forEach((layer) => {
+    if (!map.hasLayer(layer)) layer.addTo(map);
+  });
+};
+
+const removeRouteLayers = (map, entry) => {
+  layersFor(entry).forEach((layer) => {
+    if (map.hasLayer(layer)) layer.remove();
+  });
+};
+
 const showAllRoutes = () => {
   const { map, routes, polylines } = mapState;
   if (!map) return;
   const allPoints = [];
   routes.forEach((route) => {
-    const line = polylines.get(route.label);
-    if (line && !map.hasLayer(line)) line.addTo(map);
+    addRouteLayers(map, polylines.get(route.label));
     if (route.polyline?.length) allPoints.push(...route.polyline);
   });
   mapState.selected = null;
@@ -391,13 +439,13 @@ const focusRoute = (label) => {
   if (!map) return;
   let target = null;
   routes.forEach((route) => {
-    const line = polylines.get(route.label);
-    if (!line) return;
+    const entry = polylines.get(route.label);
+    if (!entry) return;
     if (route.label === label) {
-      if (!map.hasLayer(line)) line.addTo(map);
+      addRouteLayers(map, entry);
       target = route.polyline;
-    } else if (map.hasLayer(line)) {
-      line.remove();
+    } else {
+      removeRouteLayers(map, entry);
     }
   });
   mapState.selected = label;

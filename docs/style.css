@@ -175,14 +175,10 @@ main {
   padding: 12px 14px;
 }
 
-.card.primary {
-  border-left-color: var(--primary);
-}
-.card.alt_1 {
-  border-left-color: var(--alt1);
-}
+.card.primary,
+.card.alt_1,
 .card.alt_2 {
-  border-left-color: var(--alt2);
+  border-left-color: var(--accent);
 }
 
 

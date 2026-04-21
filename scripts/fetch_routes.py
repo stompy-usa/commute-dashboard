@@ -63,6 +63,7 @@ def call_tomtom(
         "alternativeType": "anyRoute",
         "routeRepresentation": "polyline",
         "instructionsType": "text",
+        "sectionType": "traffic",
         "travelMode": "car",
         "routeType": "fastest",
         "departAt": "now",
@@ -120,6 +121,23 @@ def build_snapshot(raw: dict, et_slot: str, period: str) -> dict:
                 }
             )
 
+        traffic_sections: list[dict] = []
+        for section in route.get("sections", []) or []:
+            if section.get("sectionType") != "TRAFFIC":
+                continue
+            magnitude = section.get("magnitudeOfDelay")
+            if magnitude in (None, 0, 4):
+                continue
+            traffic_sections.append(
+                {
+                    "start_idx": section.get("startPointIndex"),
+                    "end_idx": section.get("endPointIndex"),
+                    "magnitude": magnitude,
+                    "delay_s": section.get("delayInSeconds"),
+                    "category": section.get("simpleCategory"),
+                }
+            )
+
         label = "primary" if i == 0 else f"alt_{i}"
         routes_out.append(
             {
@@ -132,6 +150,7 @@ def build_snapshot(raw: dict, et_slot: str, period: str) -> dict:
                 },
                 "polyline": polyline,
                 "instructions": instructions,
+                "traffic_sections": traffic_sections,
             }
         )
 
