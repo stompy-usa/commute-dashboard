@@ -233,7 +233,23 @@ const mapState = {
   selected: null,
 };
 
-const initMap = (routes) => {
+const startIcon = () =>
+  L.divIcon({
+    className: "endpoint-marker start-marker",
+    html: '<div class="endpoint-dot"></div>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+
+const finishIcon = () =>
+  L.divIcon({
+    className: "endpoint-marker finish-marker",
+    html: "\u{1F3C1}",
+    iconSize: [28, 28],
+    iconAnchor: [4, 26],
+  });
+
+const initMap = (routes, period) => {
   const map = L.map("map");
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -260,8 +276,10 @@ const initMap = (routes) => {
   if (routes[0]?.polyline?.length) {
     const first = routes[0].polyline[0];
     const last = routes[0].polyline[routes[0].polyline.length - 1];
-    L.marker(first).addTo(map).bindTooltip("home");
-    L.marker(last).addTo(map).bindTooltip("office");
+    const startLabel = period === "evening" ? "office (start)" : "home (start)";
+    const finishLabel = period === "evening" ? "home (finish)" : "office (finish)";
+    L.marker(first, { icon: startIcon() }).addTo(map).bindTooltip(startLabel);
+    L.marker(last, { icon: finishIcon() }).addTo(map).bindTooltip(finishLabel);
   }
 
   mapState.map = map;
@@ -476,7 +494,7 @@ const load = async () => {
     cards.appendChild(buildCard(route, route.label === recommended));
   });
 
-  initMap(routes);
+  initMap(routes, period);
 
   const todaySnaps = await loadTodaySnapshots(period);
   renderSummary(todaySnaps, period);
