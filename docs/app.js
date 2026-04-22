@@ -534,21 +534,11 @@ const renderEmpty = () => {
   cards.appendChild(el);
 };
 
-const MASK_BUFFER_KM = 1.5;
-const MASK_FILL_OPACITY = 0.55;
-const WORLD_RING = [
-  [90, -180],
-  [90, 180],
-  [-90, 180],
-  [-90, -180],
-];
-
 const mapState = {
   map: null,
   polylines: new Map(),
   routes: [],
   selected: null,
-  mask: null,
 };
 
 let cameraAnimated = false;
@@ -598,13 +588,6 @@ const initMap = (routes, period) => {
       subdomains: "abcd",
     }
   ).addTo(map);
-
-  mapState.mask = L.polygon([WORLD_RING], {
-    fillColor: "#000",
-    fillOpacity: MASK_FILL_OPACITY,
-    stroke: false,
-    interactive: false,
-  }).addTo(map);
 
   routes.forEach((route) => {
     if (!route.polyline?.length) return;
@@ -665,54 +648,6 @@ const invalidateSoon = () => {
   requestAnimationFrame(() => mapState.map.invalidateSize());
 };
 
-const updateMask = () => {
-  const { mask, routes, selected } = mapState;
-  if (!mask || typeof turf === "undefined") return;
-
-  const active = selected
-    ? routes.filter((r) => r.label === selected)
-    : routes;
-
-  const lines = active
-    .filter((r) => r.polyline?.length >= 2)
-    .map((r) =>
-      turf.lineString(r.polyline.map(([lat, lng]) => [lng, lat]))
-    );
-
-  if (!lines.length) {
-    mask.setLatLngs([WORLD_RING]);
-    return;
-  }
-
-  let buffered;
-  try {
-    buffered = turf.buffer(turf.featureCollection(lines), MASK_BUFFER_KM, {
-      units: "kilometers",
-    });
-  } catch {
-    mask.setLatLngs([WORLD_RING]);
-    return;
-  }
-
-  const innerRings = [];
-  turf.geomEach(buffered, (geom) => {
-    if (!geom) return;
-    if (geom.type === "Polygon") {
-      geom.coordinates.forEach((ring) => {
-        innerRings.push(ring.map(([lng, lat]) => [lat, lng]));
-      });
-    } else if (geom.type === "MultiPolygon") {
-      geom.coordinates.forEach((poly) =>
-        poly.forEach((ring) =>
-          innerRings.push(ring.map(([lng, lat]) => [lat, lng]))
-        )
-      );
-    }
-  });
-
-  mask.setLatLngs(innerRings.length ? [WORLD_RING, ...innerRings] : [WORLD_RING]);
-};
-
 const layersFor = (entry) =>
   entry ? [entry.base, ...(entry.overlays || [])].filter(Boolean) : [];
 
@@ -737,7 +672,6 @@ const showAllRoutes = () => {
     if (route.polyline?.length) allPoints.push(...route.polyline);
   });
   mapState.selected = null;
-  updateMask();
   if (allPoints.length) {
     fitToBounds(L.latLngBounds(allPoints));
   } else {
@@ -760,7 +694,6 @@ const focusRoute = (label) => {
     }
   });
   mapState.selected = label;
-  updateMask();
   if (target?.length) {
     fitToBounds(L.latLngBounds(target));
   }
