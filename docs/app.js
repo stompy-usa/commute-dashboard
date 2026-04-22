@@ -200,6 +200,7 @@ const renderDirections = (route) => {
 
 const openDirections = (route) => {
   if (!route) return;
+  closeCalendar();
   renderDirections(route);
   document.getElementById("directions").hidden = false;
   document.getElementById("dir-toggle")?.classList.add("open");
@@ -226,11 +227,292 @@ const toggleDirections = () => {
   if (route && (route.instructions || []).length) openDirections(route);
 };
 
+// ============================================================
+// Commute calendar
+// ============================================================
+
+const MORNING_TARGET_MIN = 6 * 60 + 30; // 6:30 ET
+const EVENING_TARGET_MIN = 16 * 60;      // 16:00 ET
+
+let indexCachePromise = null;
+const snapshotCache = new Map();
+const monthDataCache = new Map();
+const calState = { year: null, month: null };
+
+const slotToMinutes = (slot) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(slot || "");
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+};
+
+const fetchIndexCached = () => {
+  if (!indexCachePromise) {
+    indexCachePromise = fetch(INDEX_URL, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+  }
+  return indexCachePromise;
+};
+
+const fetchSnapshotByPath = (path) => {
+  if (!snapshotCache.has(path)) {
+    snapshotCache.set(
+      path,
+      fetch(`data/${path}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+    );
+  }
+  return snapshotCache.get(path);
+};
+
+const bucketForRatio = (ratio) => {
+  if (ratio < 0.10) return "normal";
+  if (ratio < 0.20) return "moderate";
+  return "heavy";
+};
+
+const colorForBucket = (bucket) => {
+  if (bucket === "normal") return "var(--primary)";
+  if (bucket === "moderate") return "var(--alt1)";
+  if (bucket === "heavy") return "var(--alt2)";
+  return null;
+};
+
+const loadMonthData = async (year, month) => {
+  const key = `${year}-${String(month).padStart(2, "0")}`;
+  if (monthDataCache.has(key)) return monthDataCache.get(key);
+
+  const index = await fetchIndexCached();
+  if (!Array.isArray(index)) {
+    monthDataCache.set(key, new Map());
+    return monthDataCache.get(key);
+  }
+
+  const monthPrefix = `data/${year}/${String(month).padStart(2, "0")}/`;
+  const hhmmEntries = [];
+  const manualEntries = [];
+  for (const e of index) {
+    if (!e?.path?.startsWith(monthPrefix)) continue;
+    const dateMatch = /data\/(\d{4})\/(\d{2})\/(\d{2})\//.exec(e.path);
+    if (!dateMatch) continue;
+    const dateKey = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+    if (/^\d{1,2}:\d{2}$/.test(e.et_slot || "")) {
+      const mins = slotToMinutes(e.et_slot);
+      if (mins == null) continue;
+      const period = mins < 720 ? "morning" : "evening";
+      hhmmEntries.push({ path: e.path, mins, dateKey, period, slot: e.et_slot });
+    } else if (e.et_slot === "manual") {
+      manualEntries.push({ path: e.path, dateKey });
+    }
+  }
+
+  const picks = new Map();
+  for (const e of hhmmEntries) {
+    const target =
+      e.period === "morning" ? MORNING_TARGET_MIN : EVENING_TARGET_MIN;
+    const pickKey = `${e.dateKey}|${e.period}`;
+    const prev = picks.get(pickKey);
+    if (!prev || Math.abs(e.mins - target) < Math.abs(prev.mins - target)) {
+      picks.set(pickKey, e);
+    }
+  }
+
+  const buildResult = (e, snap, overridePeriod) => {
+    const primary = (snap.routes || []).find((r) => r.label === "primary");
+    const s = primary?.summary;
+    if (!s?.duration_s) return null;
+    const ratio = (s.traffic_delay_s || 0) / s.duration_s;
+    return {
+      dateKey: e.dateKey,
+      period: overridePeriod || e.period,
+      bucket: bucketForRatio(ratio),
+      ratio,
+      duration_s: s.duration_s,
+      traffic_delay_s: s.traffic_delay_s || 0,
+      arrival_et: s.arrival_et,
+      slot: e.slot || "manual",
+    };
+  };
+
+  const [hhmmResults, manualResults] = await Promise.all([
+    Promise.all(
+      [...picks.values()].map(async (e) => {
+        const snap = await fetchSnapshotByPath(e.path);
+        return snap ? buildResult(e, snap) : null;
+      })
+    ),
+    Promise.all(
+      manualEntries.map(async (e) => {
+        const snap = await fetchSnapshotByPath(e.path);
+        if (!snap) return null;
+        const period = snap.period === "evening" ? "evening" : "morning";
+        return buildResult(e, snap, period);
+      })
+    ),
+  ]);
+
+  const dataMap = new Map();
+  // Manual first so real HHMM entries overwrite them where both exist.
+  for (const r of [...manualResults, ...hhmmResults]) {
+    if (!r) continue;
+    const existing = dataMap.get(r.dateKey) || {};
+    if (!existing[r.period] || existing[r.period].slot === "manual") {
+      existing[r.period] = r;
+    }
+    dataMap.set(r.dateKey, existing);
+  }
+  monthDataCache.set(key, dataMap);
+  return dataMap;
+};
+
+const todayETYMD = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const pick = (t) => parseInt(parts.find((p) => p.type === t).value, 10);
+  return { year: pick("year"), month: pick("month"), day: pick("day") };
+};
+
+const renderCalendar = async () => {
+  const { year, month } = calState;
+  const title = document.getElementById("cal-title");
+  const body = document.getElementById("cal-body");
+  const nextBtn = document.getElementById("cal-next");
+  if (!title || !body) return;
+
+  title.textContent = new Date(year, month - 1, 1).toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const today = todayETYMD();
+  if (nextBtn) {
+    nextBtn.disabled =
+      year > today.year || (year === today.year && month >= today.month);
+  }
+
+  body.innerHTML =
+    '<div style="grid-column: 1 / -1; color: var(--muted); font-size: 12px; padding: 12px 0; text-align: center;">Loading…</div>';
+
+  const dataMap = await loadMonthData(year, month);
+  if (calState.year !== year || calState.month !== month) return;
+
+  body.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  let firstWeekdayIdx = null;
+  let firstDay = null;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const js = new Date(year, month - 1, d).getDay();
+    if (js >= 1 && js <= 5) {
+      firstWeekdayIdx = js - 1;
+      firstDay = d;
+      break;
+    }
+  }
+  if (firstWeekdayIdx === null) return;
+
+  for (let i = 0; i < firstWeekdayIdx; i++) {
+    const empty = document.createElement("div");
+    empty.className = "cal-tile empty";
+    frag.appendChild(empty);
+  }
+
+  const fmtPct = (r) => `${Math.round(r * 100)}%`;
+  for (let d = firstDay; d <= daysInMonth; d++) {
+    const js = new Date(year, month - 1, d).getDay();
+    if (js < 1 || js > 5) continue;
+    const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const info = dataMap.get(dateKey) || {};
+
+    const tile = document.createElement("div");
+    tile.className = "cal-tile";
+    tile.dataset.date = dateKey;
+
+    const morningColor = info.morning ? colorForBucket(info.morning.bucket) : null;
+    const eveningColor = info.evening ? colorForBucket(info.evening.bucket) : null;
+    if (morningColor) tile.style.setProperty("--morning", morningColor);
+    if (eveningColor) tile.style.setProperty("--evening", eveningColor);
+
+    if (year === today.year && month === today.month && d === today.day) {
+      tile.classList.add("today");
+    }
+
+    const num = document.createElement("span");
+    num.className = "cal-tile-num";
+    num.textContent = String(d);
+    tile.appendChild(num);
+
+    const am = info.morning
+      ? `AM ${info.morning.bucket} (${fmtPct(info.morning.ratio)}, arr ${info.morning.arrival_et || "?"})`
+      : "AM no data";
+    const pm = info.evening
+      ? `PM ${info.evening.bucket} (${fmtPct(info.evening.ratio)}, arr ${info.evening.arrival_et || "?"})`
+      : "PM no data";
+    tile.title = `${dateKey} — ${am}; ${pm}`;
+
+    frag.appendChild(tile);
+  }
+
+  body.appendChild(frag);
+};
+
+const openCalendar = () => {
+  closeDirections();
+  if (calState.year === null) {
+    const t = todayETYMD();
+    calState.year = t.year;
+    calState.month = t.month;
+  }
+  document.getElementById("calendar").hidden = false;
+  document.getElementById("cal-toggle")?.classList.add("open");
+  renderCalendar();
+};
+
+const closeCalendar = () => {
+  const el = document.getElementById("calendar");
+  if (el) el.hidden = true;
+  document.getElementById("cal-toggle")?.classList.remove("open");
+};
+
+const toggleCalendar = () => {
+  const panel = document.getElementById("calendar");
+  if (!panel) return;
+  if (!panel.hidden) {
+    closeCalendar();
+    return;
+  }
+  openCalendar();
+};
+
+const shiftMonth = (delta) => {
+  if (calState.year === null) return;
+  let y = calState.year;
+  let m = calState.month + delta;
+  while (m < 1) { m += 12; y -= 1; }
+  while (m > 12) { m -= 12; y += 1; }
+  calState.year = y;
+  calState.month = m;
+  renderCalendar();
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("dir-close")?.addEventListener("click", closeDirections);
   document.getElementById("dir-toggle")?.addEventListener("click", toggleDirections);
+  document.getElementById("cal-toggle")?.addEventListener("click", toggleCalendar);
+  document.getElementById("cal-close")?.addEventListener("click", closeCalendar);
+  document.getElementById("cal-prev")?.addEventListener("click", () => shiftMonth(-1));
+  document.getElementById("cal-next")?.addEventListener("click", () => shiftMonth(1));
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeDirections();
+    if (e.key === "Escape") {
+      closeDirections();
+      closeCalendar();
+    }
   });
 });
 
