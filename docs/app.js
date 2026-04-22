@@ -269,6 +269,22 @@ const mapState = {
   mask: null,
 };
 
+let cameraAnimated = false;
+
+const prefersReducedMotion = () =>
+  !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+const fitToBounds = (bounds) => {
+  const { map } = mapState;
+  if (!map) return;
+  const opts = { padding: [24, 24] };
+  if (cameraAnimated && !prefersReducedMotion()) {
+    map.flyToBounds(bounds, { ...opts, duration: 0.6 });
+  } else {
+    map.fitBounds(bounds, opts);
+  }
+};
+
 const startIcon = () =>
   L.divIcon({
     className: "endpoint-marker start-marker",
@@ -441,7 +457,7 @@ const showAllRoutes = () => {
   mapState.selected = null;
   updateMask();
   if (allPoints.length) {
-    map.fitBounds(L.latLngBounds(allPoints), { padding: [24, 24] });
+    fitToBounds(L.latLngBounds(allPoints));
   } else {
     map.setView([39.5, -98.35], 4);
   }
@@ -464,8 +480,66 @@ const focusRoute = (label) => {
   mapState.selected = label;
   updateMask();
   if (target?.length) {
-    map.fitBounds(L.latLngBounds(target), { padding: [24, 24] });
+    fitToBounds(L.latLngBounds(target));
   }
+};
+
+const drawInPolylines = () => {
+  if (prefersReducedMotion()) return;
+  const entries = Array.from(mapState.polylines.values());
+  if (!entries.length) return;
+
+  entries.forEach((entry) => {
+    const el = entry.base.getElement();
+    if (el) {
+      const len = el.getTotalLength();
+      if (Number.isFinite(len) && len > 0) {
+        el.style.strokeDasharray = String(len);
+        el.style.strokeDashoffset = String(len);
+      }
+    }
+    (entry.overlays || []).forEach((overlay) => {
+      const ov = overlay.getElement();
+      if (ov) ov.style.opacity = "0";
+    });
+  });
+
+  requestAnimationFrame(() => {
+    entries.forEach((entry, idx) => {
+      const delay = idx * 150;
+      const el = entry.base.getElement();
+      if (el) {
+        el.style.transition = `stroke-dashoffset 1.2s ease-out ${delay}ms`;
+        el.style.strokeDashoffset = "0";
+      }
+      (entry.overlays || []).forEach((overlay) => {
+        const ov = overlay.getElement();
+        if (ov) {
+          ov.style.transition = `opacity 0.5s ease-out ${1000 + delay}ms`;
+          ov.style.opacity = "1";
+        }
+      });
+    });
+  });
+
+  const cleanupMs = 1200 + (entries.length - 1) * 150 + 600;
+  setTimeout(() => {
+    entries.forEach((entry) => {
+      const el = entry.base.getElement();
+      if (el) {
+        el.style.transition = "";
+        el.style.strokeDasharray = "";
+        el.style.strokeDashoffset = "";
+      }
+      (entry.overlays || []).forEach((overlay) => {
+        const ov = overlay.getElement();
+        if (ov) {
+          ov.style.transition = "";
+          ov.style.opacity = "";
+        }
+      });
+    });
+  }, cleanupMs);
 };
 
 const todayETPath = () => {
@@ -642,6 +716,9 @@ const load = async () => {
       .querySelector('.card[data-label="primary"]')
       ?.classList.add("selected");
   }
+
+  drawInPolylines();
+  cameraAnimated = true;
 
   const todaySnaps = await loadTodaySnapshots(period);
   renderSummary(todaySnaps, period);
