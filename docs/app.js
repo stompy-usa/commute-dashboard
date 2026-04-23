@@ -501,6 +501,69 @@ const shiftMonth = (delta) => {
   renderCalendar();
 };
 
+// ============================================================
+// Weather chip (Open-Meteo)
+// ============================================================
+
+const WEATHER_EMOJI = new Map([
+  [0, ["☀️", "Clear"]],
+  [1, ["🌤️", "Mostly clear"]],
+  [2, ["⛅", "Partly cloudy"]],
+  [3, ["☁️", "Overcast"]],
+  [45, ["🌫️", "Fog"]],
+  [48, ["🌫️", "Freezing fog"]],
+  [51, ["🌦️", "Light drizzle"]],
+  [53, ["🌦️", "Drizzle"]],
+  [55, ["🌦️", "Heavy drizzle"]],
+  [56, ["🌧️", "Freezing drizzle"]],
+  [57, ["🌧️", "Freezing drizzle"]],
+  [61, ["🌧️", "Light rain"]],
+  [63, ["🌧️", "Rain"]],
+  [65, ["🌧️", "Heavy rain"]],
+  [66, ["🌧️", "Freezing rain"]],
+  [67, ["🌧️", "Freezing rain"]],
+  [71, ["❄️", "Light snow"]],
+  [73, ["❄️", "Snow"]],
+  [75, ["❄️", "Heavy snow"]],
+  [77, ["❄️", "Snow grains"]],
+  [80, ["🌧️", "Rain showers"]],
+  [81, ["🌧️", "Rain showers"]],
+  [82, ["🌧️", "Violent showers"]],
+  [85, ["❄️", "Snow showers"]],
+  [86, ["❄️", "Snow showers"]],
+  [95, ["⛈️", "Thunderstorm"]],
+  [96, ["⛈️", "Thunderstorm w/ hail"]],
+  [99, ["⛈️", "Thunderstorm w/ hail"]],
+]);
+
+const weatherLookup = (code) => WEATHER_EMOJI.get(code) || ["🌡️", "Unknown"];
+
+const loadWeather = async (lat, lng) => {
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+      `&current=temperature_2m,weather_code,apparent_temperature,wind_speed_10m` +
+      `&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const data = await r.json();
+    const c = data?.current;
+    if (!c) return;
+    const [emoji, label] = weatherLookup(c.weather_code);
+    const t = Math.round(c.temperature_2m);
+    const feels = Math.round(c.apparent_temperature);
+    const wind = Math.round(c.wind_speed_10m);
+    const chip = document.getElementById("weather");
+    if (!chip) return;
+    document.getElementById("wx-icon").textContent = emoji;
+    document.getElementById("wx-temp").textContent = `${t}°`;
+    chip.title = `${label} · ${t}°F (feels ${feels}°F) · wind ${wind} mph`;
+    chip.hidden = false;
+  } catch {
+    /* silent */
+  }
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("dir-close")?.addEventListener("click", closeDirections);
   document.getElementById("dir-toggle")?.addEventListener("click", toggleDirections);
@@ -934,6 +997,11 @@ const load = async () => {
 
   drawInPolylines();
   cameraAnimated = true;
+
+  const originRoute =
+    routes.find((r) => r.label === "primary") || routes[0];
+  const origin = originRoute?.polyline?.[0];
+  if (origin) loadWeather(origin[0], origin[1]);
 
   const todaySnaps = await loadTodaySnapshots(period);
   renderSummary(todaySnaps, period);
