@@ -5,7 +5,7 @@
 // for `https://stompy-usa.github.io/*` and any localhost origins you
 // use for development -- without those restrictions, anyone reading
 // the page source can scrape the key and use it freely.
-const TOMTOM_KEY = "REPLACE_WITH_YOUR_RESTRICTED_KEY";
+const TOMTOM_KEY = "g1H0D3vbNjCv6k7rhQAvVyWNIFczQXFc";
 
 const HOME_COORDS = [39.9356, -75.14538];
 const OFFICE_COORDS = [40.00863, -75.2139];
