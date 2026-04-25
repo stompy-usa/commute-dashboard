@@ -1,14 +1,6 @@
-const DATA_URL = "data/latest.json";
-const INDEX_URL = "data/index.json";
-
-const MORNING_SLOTS = [
-  "05:45", "05:50", "05:55",
-  "06:00", "06:05", "06:10", "06:15", "06:20", "06:25", "06:30",
-];
-const EVENING_SLOTS = [
-  "15:15", "15:20", "15:25", "15:30", "15:35",
-  "15:40", "15:45", "15:50", "15:55", "16:00",
-];
+const STORAGE_LATEST = "commute:latest";
+const STORAGE_HISTORY = "commute:history";
+const LATEST_FRESH_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const derivePeriod = (slot) => {
   if (!slot || !/^\d{1,2}:\d{2}$/.test(slot)) return "morning";
@@ -231,40 +223,7 @@ const toggleDirections = () => {
 // Commute calendar
 // ============================================================
 
-const MORNING_TARGET_MIN = 6 * 60 + 30; // 6:30 ET
-const EVENING_TARGET_MIN = 16 * 60;      // 16:00 ET
-
-let indexCachePromise = null;
-const snapshotCache = new Map();
-const monthDataCache = new Map();
 const calState = { year: null, month: null };
-
-const slotToMinutes = (slot) => {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(slot || "");
-  if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-};
-
-const fetchIndexCached = () => {
-  if (!indexCachePromise) {
-    indexCachePromise = fetch(INDEX_URL, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .catch(() => []);
-  }
-  return indexCachePromise;
-};
-
-const fetchSnapshotByPath = (path) => {
-  if (!snapshotCache.has(path)) {
-    snapshotCache.set(
-      path,
-      fetch(`data/${path}`, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null)
-    );
-  }
-  return snapshotCache.get(path);
-};
 
 const bucketForRatio = (ratio) => {
   if (ratio < 0.10) return "normal";
@@ -279,90 +238,37 @@ const colorForBucket = (bucket) => {
   return null;
 };
 
-const loadMonthData = async (year, month) => {
-  const key = `${year}-${String(month).padStart(2, "0")}`;
-  if (monthDataCache.has(key)) return monthDataCache.get(key);
-
-  const index = await fetchIndexCached();
-  if (!Array.isArray(index)) {
-    monthDataCache.set(key, new Map());
-    return monthDataCache.get(key);
+const readHistory = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_HISTORY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
   }
+};
 
-  const monthPrefix = `data/${year}/${String(month).padStart(2, "0")}/`;
-  const hhmmEntries = [];
-  const manualEntries = [];
-  for (const e of index) {
-    if (!e?.path?.startsWith(monthPrefix)) continue;
-    const dateMatch = /data\/(\d{4})\/(\d{2})\/(\d{2})\//.exec(e.path);
-    if (!dateMatch) continue;
-    const dateKey = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-    if (/^\d{1,2}:\d{2}$/.test(e.et_slot || "")) {
-      const mins = slotToMinutes(e.et_slot);
-      if (mins == null) continue;
-      const period = mins < 720 ? "morning" : "evening";
-      hhmmEntries.push({ path: e.path, mins, dateKey, period, slot: e.et_slot });
-    } else if (e.et_slot === "manual") {
-      manualEntries.push({ path: e.path, dateKey });
-    }
+const writeHistoryTile = (dateKey, period, tile) => {
+  try {
+    const history = readHistory();
+    history[dateKey] = history[dateKey] || {};
+    history[dateKey][period] = tile;
+    localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
+  } catch {
+    /* localStorage may be disabled (private mode); fail silently */
   }
+};
 
-  const picks = new Map();
-  for (const e of hhmmEntries) {
-    const target =
-      e.period === "morning" ? MORNING_TARGET_MIN : EVENING_TARGET_MIN;
-    const pickKey = `${e.dateKey}|${e.period}`;
-    const prev = picks.get(pickKey);
-    if (!prev || Math.abs(e.mins - target) < Math.abs(prev.mins - target)) {
-      picks.set(pickKey, e);
-    }
-  }
-
-  const buildResult = (e, snap, overridePeriod) => {
-    const primary = (snap.routes || []).find((r) => r.label === "primary");
-    const s = primary?.summary;
-    if (!s?.duration_s) return null;
-    const ratio = (s.traffic_delay_s || 0) / s.duration_s;
-    return {
-      dateKey: e.dateKey,
-      period: overridePeriod || e.period,
-      bucket: bucketForRatio(ratio),
-      ratio,
-      duration_s: s.duration_s,
-      traffic_delay_s: s.traffic_delay_s || 0,
-      arrival_et: s.arrival_et,
-      slot: e.slot || "manual",
-    };
-  };
-
-  const [hhmmResults, manualResults] = await Promise.all([
-    Promise.all(
-      [...picks.values()].map(async (e) => {
-        const snap = await fetchSnapshotByPath(e.path);
-        return snap ? buildResult(e, snap) : null;
-      })
-    ),
-    Promise.all(
-      manualEntries.map(async (e) => {
-        const snap = await fetchSnapshotByPath(e.path);
-        if (!snap) return null;
-        const period = snap.period === "evening" ? "evening" : "morning";
-        return buildResult(e, snap, period);
-      })
-    ),
-  ]);
-
+const loadMonthData = (year, month) => {
+  const monthKey = `${year}-${String(month).padStart(2, "0")}-`;
+  const history = readHistory();
   const dataMap = new Map();
-  // Manual first so real HHMM entries overwrite them where both exist.
-  for (const r of [...manualResults, ...hhmmResults]) {
-    if (!r) continue;
-    const existing = dataMap.get(r.dateKey) || {};
-    if (!existing[r.period] || existing[r.period].slot === "manual") {
-      existing[r.period] = r;
+  for (const [dateKey, periods] of Object.entries(history)) {
+    if (dateKey.startsWith(monthKey) && periods && typeof periods === "object") {
+      dataMap.set(dateKey, periods);
     }
-    dataMap.set(r.dateKey, existing);
   }
-  monthDataCache.set(key, dataMap);
   return dataMap;
 };
 
@@ -593,7 +499,7 @@ const renderEmpty = () => {
   cards.innerHTML = "";
   const el = document.createElement("div");
   el.className = "empty";
-  el.textContent = "No snapshot yet. The first run happens at 5:45am ET.";
+  el.textContent = "No snapshot yet. Tap the refresh button to fetch the current commute.";
   cards.appendChild(el);
 };
 
@@ -820,149 +726,37 @@ const drawInPolylines = () => {
   }, cleanupMs);
 };
 
-const todayETPath = () => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const pick = (t) => parts.find((p) => p.type === t).value;
-  return `${pick("year")}/${pick("month")}/${pick("day")}`;
+const teardownMap = () => {
+  if (mapState.map) {
+    mapState.map.remove();
+  }
+  mapState.map = null;
+  mapState.polylines = new Map();
+  mapState.routes = [];
+  mapState.selected = null;
+  cameraAnimated = false;
 };
 
-const loadTodaySnapshots = async (period) => {
-  let index;
-  try {
-    const r = await fetch(INDEX_URL, { cache: "no-store" });
-    if (!r.ok) return [];
-    index = await r.json();
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(index)) return [];
-
-  const slots = period === "evening" ? EVENING_SLOTS : MORNING_SLOTS;
-  const prefix = todayETPath() + "/";
-  const matches = index.filter(
-    (e) => e?.path?.startsWith(prefix) && slots.includes(e.et_slot)
-  );
-
-  const snaps = await Promise.all(
-    matches.map(async (e) => {
-      try {
-        const r = await fetch(`data/${e.path}`, { cache: "no-store" });
-        if (!r.ok) return null;
-        const data = await r.json();
-        return {
-          et_slot: e.et_slot,
-          captured_at: e.captured_at,
-          routes: data.routes || [],
-        };
-      } catch {
-        return null;
-      }
-    })
-  );
-  return snaps
-    .filter(Boolean)
-    .sort((a, b) => a.et_slot.localeCompare(b.et_slot));
-};
-
-const fastestRoute = (routes) =>
-  routes
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.summary?.duration_s ?? Infinity) -
-        (b.summary?.duration_s ?? Infinity)
-    )[0];
-
-const renderSummary = (snaps, period) => {
-  const el = document.getElementById("summary");
-  const trendTitle = period === "evening" ? "Evening trend" : "Morning trend";
-  const totalSlots = (period === "evening" ? EVENING_SLOTS : MORNING_SLOTS).length;
-  if (!snaps.length) {
-    el.hidden = true;
-    el.innerHTML = "";
-    return;
-  }
-  el.hidden = false;
-
-  const rows = snaps.map((s) => {
-    const best = fastestRoute(s.routes);
-    return {
-      slot: s.et_slot,
-      label: best?.label ?? "",
-      dur: best?.summary?.duration_s ?? null,
-      delay: best?.summary?.traffic_delay_s ?? null,
-      arrival: best?.summary?.arrival_et ?? null,
-    };
+const updateHistoryFromSnapshot = (snapshot) => {
+  const primary =
+    (snapshot.routes || []).find((r) => r.label === "primary") ||
+    (snapshot.routes || [])[0];
+  const s = primary?.summary;
+  if (!s?.duration_s) return;
+  const ratio = (s.traffic_delay_s || 0) / s.duration_s;
+  const t = todayETYMD();
+  const dateKey = `${t.year}-${String(t.month).padStart(2, "0")}-${String(t.day).padStart(2, "0")}`;
+  writeHistoryTile(dateKey, snapshot.period, {
+    bucket: bucketForRatio(ratio),
+    ratio,
+    duration_s: s.duration_s,
+    traffic_delay_s: s.traffic_delay_s || 0,
+    arrival_et: s.arrival_et,
+    capturedAt: snapshot.captured_at,
   });
-
-  let trendHtml = "";
-  if (rows.length >= 2 && rows[0].dur != null && rows.at(-1).dur != null) {
-    const delta = Math.round((rows.at(-1).dur - rows[0].dur) / 60);
-    if (delta >= 3)
-      trendHtml = `<span class="trend up">&uarr; +${delta} min since ${fmt12h(rows[0].slot)}</span>`;
-    else if (delta <= -3)
-      trendHtml = `<span class="trend down">&darr; ${delta} min since ${fmt12h(rows[0].slot)}</span>`;
-    else
-      trendHtml = `<span class="trend">flat (&plusmn;${Math.abs(delta)} min)</span>`;
-  } else {
-    trendHtml = `<span class="trend">${rows.length} of ${totalSlots} slots so far</span>`;
-  }
-
-  const worst = rows.reduce(
-    (a, b) => ((b.delay ?? -1) > (a?.delay ?? -1) ? b : a),
-    null
-  );
-  const worstMin =
-    worst?.delay != null ? Math.round(worst.delay / 60) : 0;
-  let alertHtml = "";
-  if (worstMin >= 10)
-    alertHtml = `<div class="summary-alert heavy">Heavy delay at ${fmt12h(worst.slot)}: +${worstMin} min on fastest route</div>`;
-  else if (worstMin >= 3)
-    alertHtml = `<div class="summary-alert mod">Moderate delay at ${fmt12h(worst.slot)}: +${worstMin} min on fastest route</div>`;
-
-  const latestSlot = rows.at(-1).slot;
-  const tableRows = rows
-    .map((r) => {
-      const cls = r.slot === latestSlot ? "latest" : "";
-      const delay = fmtDelay(r.delay);
-      return `
-        <tr class="${cls}">
-          <td>${fmt12h(r.slot)}</td>
-          <td>${r.label.replace("_", " ") || "—"}</td>
-          <td>${fmtMinutes(r.dur)}</td>
-          <td class="${delay.cls}">${delay.text}</td>
-          <td>${fmt12h(r.arrival)}</td>
-        </tr>
-      `;
-    })
-    .join("");
-
-  el.innerHTML = `
-    <div class="summary-title"><span>${trendTitle}</span>${trendHtml}</div>
-    ${alertHtml}
-    <table class="summary-table">
-      <thead><tr><th>Slot</th><th>Fastest</th><th>Total</th><th>Traffic</th><th>ETA</th></tr></thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-  `;
 };
 
-const load = async () => {
-  let snapshot;
-  try {
-    const resp = await fetch(DATA_URL, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    snapshot = await resp.json();
-  } catch (err) {
-    renderError(`Could not load ${DATA_URL}: ${err.message}`);
-    return;
-  }
-
+const renderSnapshot = (snapshot) => {
   const period = snapshot.period || derivePeriod(snapshot.et_slot);
 
   document.getElementById("updated").textContent =
@@ -986,6 +780,7 @@ const load = async () => {
     cards.appendChild(buildCard(route, route.label === recommended));
   });
 
+  teardownMap();
   initMap(routes, period);
 
   if (routes.some((r) => r.label === "primary")) {
@@ -1002,9 +797,65 @@ const load = async () => {
     routes.find((r) => r.label === "primary") || routes[0];
   const origin = originRoute?.polyline?.[0];
   if (origin) loadWeather(origin[0], origin[1]);
-
-  const todaySnaps = await loadTodaySnapshots(period);
-  renderSummary(todaySnaps, period);
 };
 
-load();
+const readLatestSnapshot = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_LATEST);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.captured_at) return null;
+    const age = Date.now() - new Date(parsed.captured_at).getTime();
+    if (Number.isNaN(age) || age > LATEST_FRESH_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeLatestSnapshot = (snapshot) => {
+  try {
+    localStorage.setItem(STORAGE_LATEST, JSON.stringify(snapshot));
+  } catch {
+    /* localStorage may be disabled (private mode); fail silently */
+  }
+};
+
+let refreshInFlight = false;
+
+const refresh = async () => {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  const btn = document.getElementById("refresh-toggle");
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("loading");
+  }
+  try {
+    const snapshot = await fetchSnapshot();
+    writeLatestSnapshot(snapshot);
+    updateHistoryFromSnapshot(snapshot);
+    renderSnapshot(snapshot);
+  } catch (err) {
+    renderError(`Could not refresh: ${err.message}`);
+  } finally {
+    refreshInFlight = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("loading");
+    }
+  }
+};
+
+const bootstrap = () => {
+  const cached = readLatestSnapshot();
+  if (cached) {
+    renderSnapshot(cached);
+  } else {
+    renderEmpty();
+  }
+};
+
+document.getElementById("refresh-toggle")?.addEventListener("click", refresh);
+
+bootstrap();

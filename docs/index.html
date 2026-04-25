@@ -17,7 +17,7 @@
       <h1>Commute snapshot</h1>
       <div class="meta">
         <span id="period" class="period"></span>
-        <span id="updated">Loading…</span>
+        <span id="updated"></span>
         <span id="slot"></span>
       </div>
     </header>
@@ -31,6 +31,11 @@
           <span class="wx-icon" id="wx-icon"></span>
           <span class="wx-temp" id="wx-temp"></span>
         </div>
+        <button type="button" id="refresh-toggle" class="refresh-toggle" aria-label="Refresh traffic" title="Refresh traffic">
+          <svg class="refresh-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M4 12a8 8 0 0 1 13.66-5.66L20 4v6h-6l2.34-2.34a6 6 0 1 0 1.66 4.34h2a8 8 0 1 1-16 0z" fill="currentColor"/>
+          </svg>
+        </button>
         <button type="button" id="cal-toggle" class="cal-toggle" aria-label="Toggle calendar" title="Commute calendar">
           <svg class="cal-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <rect x="3" y="5" width="18" height="16" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -84,6 +89,7 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="tomtom.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
